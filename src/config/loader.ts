@@ -50,6 +50,19 @@ export function initConfig(filePath: string): AppConfig {
   return _config;
 }
 
+/**
+ * Nạp lại config từ file. Nếu file lỗi/không validate, GIỮ config hiện tại
+ * (không làm sập server) và trả về { ok: false, error }.
+ */
+export function reloadConfig(filePath: string): { ok: true } | { ok: false; error: string } {
+  try {
+    _config = loadConfig(filePath);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 export function getConfig(): AppConfig {
   if (!_config) throw new Error("Config not initialized — call initConfig() first");
   return _config;

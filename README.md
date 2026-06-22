@@ -135,6 +135,28 @@ npm start -- --stdio
 
 ---
 
+## Quản lý source (CLI) + Hot-reload
+
+**Thêm/liệt kê source bằng CLI** (khỏi sửa YAML tay — tự sinh apiKey, ghi `config.yaml` + `.env`):
+
+```bash
+# Liệt kê các source hiện có
+npm run source -- list
+
+# Thêm source mới: tự sinh apiKey, ghi KEY_<NAME> vào .env và source vào config.yaml
+npm run source -- add project_b \
+  --db oracle_sales:read,write --desc oracle_sales="DB bán hàng" \
+  --db mongo_logs:read
+```
+
+CLI kiểm tra: DB phải tồn tại, capability hợp lệ, tên source chưa trùng; rồi in ra apiKey để bạn đưa cho dự án (header `x-api-key`). Lưu ý: `config.yaml` được ghi lại bằng js-yaml nên **comment trong file sẽ bị chuẩn hoá/mất** — nếu cần giữ comment, sửa tay thay vì dùng CLI.
+
+**Hot-reload:** server theo dõi `config.yaml`; khi file đổi, nó **đọc lại `.env` + nạp lại config + dựng lại bảng API key** mà không cần restart. Nếu config mới lỗi (sai cú pháp/validate), server **giữ nguyên config cũ** và ghi log lỗi (không sập). Session HTTP mới dùng quyền mới; session đang mở giữ snapshot cũ cho tới khi kết nối lại.
+
+> Vì hot-reload đọc lại `.env`, thêm source bằng CLI (ghi `.env` trước, `config.yaml` sau) sẽ được server đang chạy tự nhận — không cần restart.
+
+---
+
 ## SSH Tunnel Tích Hợp
 
 Khi một database chỉ truy cập được qua một bastion/jump host, khai báo block `ssh:` ngay trong entry database của `config.yaml` — server tự mở và quản lý tunnel (qua thư viện `ssh2`), không cần chạy systemd tunnel riêng (`mcp-db-tunnel.service`) nữa:

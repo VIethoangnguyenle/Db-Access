@@ -5,8 +5,9 @@ import {StdioServerTransport} from "@modelcontextprotocol/sdk/server/stdio.js";
 import express from "express";
 import dotenv from "dotenv";
 import {randomUUID} from "node:crypto";
+import {watchFile} from "node:fs";
 
-import {initConfig, getConfig} from "./config/loader.js";
+import {initConfig, getConfig, reloadConfig} from "./config/loader.js";
 import {initSourceIndex, resolveSource} from "./auth/resolve-source.js";
 import {shutdownAll} from "./net/tunnel-manager.js";
 import {createServer} from "./server.js";
@@ -17,6 +18,21 @@ dotenv.config({override: true});
 const CONFIG_PATH = process.env.CONFIG_PATH || "./config.yaml";
 initConfig(CONFIG_PATH);
 initSourceIndex();
+
+// Hot-reload: tự nạp lại khi config.yaml đổi (polling, bền với atomic-save).
+// Đọc lại .env trước để bắt được secret mới (vd apiKey của source vừa thêm).
+// Session HTTP mới sẽ dùng source/quyền mới; session đang mở giữ snapshot cũ.
+watchFile(CONFIG_PATH, {interval: 1000}, (curr, prev) => {
+  if (curr.mtimeMs === prev.mtimeMs) return;
+  dotenv.config({override: true});
+  const r = reloadConfig(CONFIG_PATH);
+  if (r.ok) {
+    initSourceIndex();
+    console.error(`[config] reloaded from ${CONFIG_PATH}`);
+  } else {
+    console.error(`[config] reload failed (kept previous config): ${r.error}`);
+  }
+});
 
 // Đóng tunnel khi tắt
 for (const sig of ["SIGINT", "SIGTERM"] as const) {
