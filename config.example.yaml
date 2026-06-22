@@ -1,0 +1,30 @@
+databases:
+  oracle_prod:
+    type: oracle
+    host: 127.0.0.1
+    port: 1521
+    service: XEPDB1
+    user: ${PROD_USER}
+    password: ${PROD_PASS}
+
+  # Ví dụ DB qua SSH tunnel — tương đương:
+  #   ssh -N -L <auto>:127.0.0.1:18789 ssh-user@xx.xxx.xx.xx
+  # KHÔNG khai privateKey → server spawn `ssh` hệ thống, dùng ~/.ssh/config,
+  # default key, ssh-agent sẵn có của máy (giống lệnh ssh bạn vẫn chạy tay).
+  # oracle_via_ssh:
+  #   type: oracle
+  #   host: 127.0.0.1        # nhìn từ phía bastion (đầu xa của -L)
+  #   port: 18789
+  #   service: XEPDB1
+  #   user: ${PROD_USER}
+  #   password: ${PROD_PASS}
+  #   ssh:
+  #     host: xx.xxx.xx.xx
+  #     user: ssh-user
+  #     # port: 22
+  #     # privateKey: ~/.ssh/id_rsa   # khai nếu muốn dùng ssh2 + key cụ thể
+sources:
+  agent_a:
+    apiKey: ${KEY_A}
+    access:
+      oracle_prod: [read]

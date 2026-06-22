@@ -1,0 +1,14 @@
+services:
+  mcp-db-tools:
+    build: .
+    container_name: mcp-db-tools
+    restart: unless-stopped
+    ports:
+      - "8443:8443"
+    env_file:
+      - .env
+    environment:
+      - CONFIG_PATH=/app/config.yaml
+    volumes:
+      - ./.env:/app/.env:ro
+      - ./config.yaml:/app/config.yaml:ro

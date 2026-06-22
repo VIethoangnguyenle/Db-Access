@@ -1,0 +1,43 @@
+{
+  "name": "db-remote",
+  "version": "1.0.0",
+  "description": "Internal MCP Server for database querying (Oracle + MongoDB)",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "test": "node --import tsx --test \"test/**/*.test.ts\""
+  },
+  "bin": {
+    "mcp-db-tools": "dist/index.js",
+    "mcp-sse-proxy": "sse-proxy.mjs"
+  },
+  "files": [
+    "dist",
+    "sse-proxy.mjs"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "js-yaml": "^5.0.0",
+    "mongodb": "^7.2.0",
+    "node-sql-parser": "^5.4.0",
+    "oracledb": "^6.10.0",
+    "ssh2": "^1.17.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.6.0",
+    "@types/oracledb": "^6.10.3",
+    "@types/ssh2": "^1.15.5",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3"
+  }
+}

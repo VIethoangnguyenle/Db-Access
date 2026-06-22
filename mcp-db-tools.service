@@ -1,0 +1,15 @@
+[Unit]
+Description=MCP DB Tools Server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/zane/Desktop/tools/db-remote
+ExecStart=/home/zane/.nvm/versions/node/v21.7.1/bin/node dist/index.js
+Environment="NODE_ENV=production"
+Environment="CONFIG_PATH=/home/zane/Desktop/tools/db-remote/config.yaml"
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
