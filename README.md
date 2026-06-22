@@ -377,7 +377,7 @@ API key **chỉ được chấp nhận qua `x-api-key` header** (query string `?
 }
 ```
 
-> ⚠️ `sse-proxy.mjs` hiện vẫn gắn `--api-key` vào query string (`?api_key=...`) khi gọi tới server. Vì server chỉ chấp nhận `x-api-key` qua HEADER, proxy này cần được cập nhật trước khi dùng với server đã áp dụng security fix này.
+> `sse-proxy.mjs` gửi `--api-key` qua **header `x-api-key`** (cả luồng SSE GET lẫn POST messages), khớp với cơ chế auth header-only của server.
 
 ---
 
