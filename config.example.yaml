@@ -26,5 +26,12 @@ databases:
 sources:
   agent_a:
     apiKey: ${KEY_A}
+    # access: mỗi dự án chỉ khai những DB nó dùng. Hai dạng:
+    #   - rút gọn:  <dbName>: [capabilities]
+    #   - đầy đủ:   <dbName>: { capabilities: [...], description: "..." }
+    # `description` được trả về trong list_databases để agent biết DB dùng làm gì.
     access:
-      oracle_prod: [read]
+      oracle_prod:
+        capabilities: [read]
+        description: "DB bán hàng: đơn hàng, khách hàng (chỉ đọc)"
+      # mongo_logs: [read]   # dạng rút gọn vẫn dùng được

@@ -8,8 +8,8 @@ export class AccessError extends Error {
 }
 
 export function hasAccess(source: Source, dbName: string, cap: Capability): boolean {
-  const caps = source.access[dbName];
-  return !!caps && caps.includes(cap);
+  const entry = source.access[dbName];
+  return !!entry && entry.capabilities.includes(cap);
 }
 
 /**
@@ -22,6 +22,12 @@ export function assertAccess(source: Source, dbName: string, cap: Capability): v
   }
 }
 
-export function accessibleDatabases(source: Source): { name: string; capabilities: Capability[] }[] {
-  return Object.entries(source.access).map(([name, capabilities]) => ({ name, capabilities }));
+export function accessibleDatabases(
+  source: Source
+): { name: string; capabilities: Capability[]; description?: string }[] {
+  return Object.entries(source.access).map(([name, entry]) => ({
+    name,
+    capabilities: entry.capabilities,
+    ...(entry.description ? { description: entry.description } : {}),
+  }));
 }

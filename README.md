@@ -90,7 +90,10 @@ sources:
   agent_a:
     apiKey: ${KEY_A}
     access:
-      oracle_prod: [read]
+      oracle_prod:
+        capabilities: [read]
+        description: "DB bán hàng: đơn hàng, khách hàng (chỉ đọc)"
+      # mongo_logs: [read]   # dạng rút gọn (chỉ capabilities) vẫn dùng được
 ```
 
 Chỉnh sửa `.env` để điền các giá trị `${ENV_VAR}` được tham chiếu ở trên, ví dụ:
@@ -104,7 +107,11 @@ KEY_A=replace-with-strong-random-key
 
 > **Field reference (per database):** `type` (`oracle` | `mongo`), `host`, `port`, `service` (bắt buộc nếu `type: oracle`) hoặc `database` (bắt buộc nếu `type: mongo`), `user`, `password`, và `ssh` (optional — xem mục [SSH Tunnel Tích Hợp](#ssh-tunnel-tích-hợp)).
 >
-> **Field reference (per source):** `apiKey`, `access` — map `{ <dbName>: [capabilities] }` với capability là `read`, `write`, và/hoặc `script`.
+> **Field reference (per source):** `apiKey`, và `access` — map mỗi DB mà source được dùng. Mỗi entry có 2 dạng:
+> - **Rút gọn:** `<dbName>: [capabilities]`
+> - **Đầy đủ:** `<dbName>: { capabilities: [...], description: "..." }`
+>
+> `capabilities` ∈ `read` / `write` / `script`. `description` (optional) được trả về trong `list_databases` để **agent biết mỗi DB dùng làm gì** và chọn đúng DB. Mỗi source chỉ khai những DB nó cần — không thấy được DB ngoài `access`.
 >
 > Đường dẫn file config đọc từ env var `CONFIG_PATH` (default: `./config.yaml`).
 

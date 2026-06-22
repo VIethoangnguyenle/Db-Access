@@ -12,7 +12,7 @@ function captureHandler(register: (s: any, src: Source) => void, source: Source)
   return handler;
 }
 
-const source: Source = { name: "a", apiKey: "k", access: { other_db: ["read"] } };
+const source: Source = { name: "a", apiKey: "k", access: { other_db: { capabilities: ["read"] } } };
 
 test("sql_read từ chối DB ngoài quyền", async () => {
   const handler = captureHandler(registerSqlRead, source);

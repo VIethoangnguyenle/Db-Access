@@ -6,7 +6,7 @@ import { AppConfig } from "../../src/config/schema.js";
 const cfg: AppConfig = {
   databases: {},
   sources: {
-    agent_a: { name: "agent_a", apiKey: "key-a", access: { db1: ["read"] } },
+    agent_a: { name: "agent_a", apiKey: "key-a", access: { db1: { capabilities: ["read"] } } },
     agent_b: { name: "agent_b", apiKey: "key-b", access: {} },
   },
 };

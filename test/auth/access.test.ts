@@ -6,7 +6,10 @@ import { Source } from "../../src/config/schema.js";
 const source: Source = {
   name: "agent_a",
   apiKey: "k",
-  access: { oracle_prod: ["read"], oracle_dev: ["read", "write", "script"] },
+  access: {
+    oracle_prod: { capabilities: ["read"], description: "DB bán hàng" },
+    oracle_dev: { capabilities: ["read", "write", "script"] },
+  },
 };
 
 test("hasAccess đúng theo capability", () => {
@@ -22,13 +25,13 @@ test("assertAccess throw AccessError khi bị từ chối", () => {
   assert.throws(() => assertAccess(source, "unknown_db", "read"), AccessError);
 });
 
-test("accessibleDatabases liệt kê đúng", () => {
+test("accessibleDatabases liệt kê đúng (kèm description nếu có)", () => {
   const list = accessibleDatabases(source);
   assert.deepEqual(
     list.sort((a, b) => a.name.localeCompare(b.name)),
     [
       { name: "oracle_dev", capabilities: ["read", "write", "script"] },
-      { name: "oracle_prod", capabilities: ["read"] },
+      { name: "oracle_prod", capabilities: ["read"], description: "DB bán hàng" },
     ]
   );
 });

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import yaml from "js-yaml";
-import { appConfigSchema, AppConfig, DbConfig, Source } from "./schema.js";
+import { appConfigSchema, AppConfig, DbAccess, DbConfig, Source } from "./schema.js";
 
 /**
  * Nội suy ${ENV_VAR} trong text bằng process.env. Throw nếu biến thiếu.
@@ -27,12 +27,17 @@ export function loadConfig(filePath: string): AppConfig {
 
   const sources: Record<string, Source> = {};
   for (const [name, src] of Object.entries(validated.sources)) {
-    for (const dbName of Object.keys(src.access)) {
+    const access: Record<string, DbAccess> = {};
+    for (const [dbName, entry] of Object.entries(src.access)) {
       if (!databases[dbName]) {
         throw new Error(`Source '${name}' references unknown database '${dbName}'`);
       }
+      // Chuẩn hoá: dạng shorthand (array) -> { capabilities }; dạng object giữ description
+      access[dbName] = Array.isArray(entry)
+        ? { capabilities: entry }
+        : { capabilities: entry.capabilities, description: entry.description };
     }
-    sources[name] = { name, apiKey: src.apiKey, access: src.access };
+    sources[name] = { name, apiKey: src.apiKey, access };
   }
 
   return { databases, sources };

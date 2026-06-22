@@ -32,9 +32,20 @@ export const dbSchema = z
   });
 export type RawDb = z.infer<typeof dbSchema>;
 
+// Một entry access có 2 dạng:
+//   - shorthand: [read, write]                         (chỉ capabilities)
+//   - object:    { capabilities: [...], description }   (kèm mô tả cho agent)
+export const accessEntrySchema = z.union([
+  z.array(capabilitySchema),
+  z.object({
+    capabilities: z.array(capabilitySchema),
+    description: z.string().optional(),
+  }),
+]);
+
 export const sourceSchema = z.object({
   apiKey: z.string().min(1),
-  access: z.record(z.string(), z.array(capabilitySchema)),
+  access: z.record(z.string(), accessEntrySchema),
 });
 
 export const appConfigSchema = z.object({
@@ -44,10 +55,16 @@ export const appConfigSchema = z.object({
 
 // Resolved (name attached) types used across the app
 export interface DbConfig extends RawDb { name: string; }
+
+/** Quyền truy cập + mô tả (cho agent) của một source lên một database. */
+export interface DbAccess {
+  capabilities: Capability[];
+  description?: string;
+}
 export interface Source {
   name: string;
   apiKey: string;
-  access: Record<string, Capability[]>;
+  access: Record<string, DbAccess>;
 }
 export interface AppConfig {
   databases: Record<string, DbConfig>;
