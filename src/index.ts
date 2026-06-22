@@ -9,6 +9,7 @@ import {watchFile} from "node:fs";
 
 import {initConfig, getConfig, reloadConfig} from "./config/loader.js";
 import {initSourceIndex, resolveSource} from "./auth/resolve-source.js";
+import {extractApiKey} from "./auth/http.js";
 import {shutdownAll} from "./net/tunnel-manager.js";
 import {createServer} from "./server.js";
 import {Source} from "./config/schema.js";
@@ -76,10 +77,9 @@ if (isStdio) {
     res.json({status: "UP", timestamp: new Date().toISOString()});
   });
 
-  // Auth: chỉ nhận x-api-key qua HEADER; gắn source vào req
+  // Auth: nhận key qua HEADER (x-api-key hoặc Authorization: Bearer); gắn source vào req
   app.use((req, res, next) => {
-    const apiKey = req.headers["x-api-key"];
-    const source = resolveSource(typeof apiKey === "string" ? apiKey : undefined);
+    const source = resolveSource(extractApiKey(req.headers as Record<string, unknown>));
     if (!source) {
       res.status(401).json({error: "Unauthorized: invalid or missing API key"});
       return;
