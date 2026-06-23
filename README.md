@@ -1,10 +1,29 @@
-# DB Access — MCP Database Server
+<div align="center">
+
+<img src="assets/banner.png" alt="DB Access — MCP Database Server" width="100%">
+
+# 📦 DB Access — MCP Database Server
+
+![Node](https://img.shields.io/badge/Node-%E2%89%A518-339933?logo=node.js&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-ESM-3178C6?logo=typescript&logoColor=white)
+![MCP](https://img.shields.io/badge/MCP-server-6E56CF)
+![Databases](https://img.shields.io/badge/DB-Oracle%20%7C%20PostgreSQL%20%7C%20MongoDB-F29111)
+![License](https://img.shields.io/badge/license-internal-lightgrey)
+
+</div>
 
 > Internal [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server cho phép AI agents / IDEs truy vấn **Oracle**, **PostgreSQL** và **MongoDB** databases từ xa, an toàn.
 
----
+## 🌟 Highlights
 
-## Tổng quan
+- 🔌 **Một server, nhiều DB** — Oracle, PostgreSQL và MongoDB sau *một* endpoint MCP; tool `sql_*` tự chọn driver theo `db_name`, thêm DB quan hệ mới không phát sinh tool.
+- 👥 **Multi-tenant** — mỗi agent/IDE là một *source* với API key riêng, phân quyền `read` / `write` / `script` **theo từng database**.
+- 🛡️ **An toàn mặc định** — chặn DDL, shadow-preview + confirmation token 2 bước cho mọi thao tác ghi (`UPDATE`/`DELETE`/script).
+- 🔐 **SSH tunnel tích hợp** — khai `ssh:` trong config, server tự mở & giữ tunnel (không cần `ssh -L` thủ công hay systemd unit riêng).
+- 📡 **Đa transport** — Stdio (local), Streamable HTTP, SSE (legacy) → dùng được với Claude Code, Antigravity, Codex, Cursor/Windsurf…
+- 🗂️ **Config tập trung + hot-reload** — `config.yaml` + `${ENV}` secrets; thêm/sửa source qua CLI, không cần restart.
+
+## ℹ️ Tổng quan
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
@@ -55,9 +74,13 @@
 | 📋 **Schema Enforcer** | Bắt buộc schema prefix trong mọi truy vấn SQL (`SCHEMA.TABLE`) |
 | 👁️ **Shadow Preview** | Tự động preview rows bị ảnh hưởng trước khi thực thi UPDATE/DELETE; từ chối đoán khi không chắc chắn |
 
+### ✍️ Tác giả
+
+Xây dựng & duy trì bởi [**@VIethoangnguyenle**](https://github.com/VIethoangnguyenle) (hoangnlv). Là internal tool — góp ý/issue xin gửi qua [repo trên GitHub](https://github.com/VIethoangnguyenle/Db-Access).
+
 ---
 
-## Quick Start
+## 🚀 Quick Start
 
 ### 1. Cài đặt dependencies
 
@@ -754,6 +777,7 @@ systemctl --user status mcp-db-tools.service
 | Language | TypeScript (ES2022, Node16 modules) |
 | MCP SDK | `@modelcontextprotocol/sdk` ^1.29 |
 | Oracle Driver | `oracledb` ^6.10 (thin mode — no Instant Client required) |
+| PostgreSQL Driver | `pg` ^8.22 |
 | MongoDB Driver | `mongodb` ^7.2 |
 | SQL Parser | `node-sql-parser` ^5.4 |
 | Config Format | `js-yaml` ^5.0 (`config.yaml` parsing) |
@@ -767,4 +791,3 @@ systemctl --user status mcp-db-tools.service
 ## License
 
 Internal tool — không phân phối công khai.
-# Db-Access
