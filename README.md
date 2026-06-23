@@ -1,6 +1,6 @@
 # DB Remote — MCP Database Server
 
-> Internal [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server cho phép AI agents / IDEs truy vấn **Oracle** và **MongoDB** databases từ xa, an toàn.
+> Internal [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server cho phép AI agents / IDEs truy vấn **Oracle**, **PostgreSQL** và **MongoDB** databases từ xa, an toàn.
 
 ---
 
@@ -19,14 +19,14 @@
 │                        │                                         │
 │              ┌─────────┴──────────┐                              │
 │              │   Tool Registry    │                              │
-│              │  (11 MCP Tools)    │                              │
+│              │  (17 MCP Tools)    │                              │
 
 │              └─────────┬──────────┘                              │
 │       ┌────────────────┼────────────────┐                        │
 │  ┌────┴─────┐    ┌─────┴──────┐   ┌────┴──────┐                 │
-│  │ Config   │    │  Oracle    │   │  MongoDB  │                  │
-│  │ Loader   │    │  Driver    │   │  Driver   │                  │
-│  │(yaml+ssh)│    │ (oracledb) │   │ (mongodb) │                  │
+│  │ Config   │  │ Oracle │ PostgreSQL │ MongoDB │                 │
+│  │ Loader   │  │ Driver │   Driver   │ Driver  │                 │
+│  │(yaml+ssh)│  │(oracledb)│   (pg)    │(mongodb)│                 │
 │                  └─────┬──────┘   └────┬──────┘                  │
 │                        │               │                         │
 │              ┌─────────┴──────────┐    │                         │
@@ -37,9 +37,9 @@
 │              └────────────────────┘    │                         │
 └──────────────────────────────────────────────────────────────────┘
          │                                      │
-    ┌────┴──────────┐                  ┌────────┴────────┐
-    │ Oracle DB(s)  │                  │  MongoDB(s)     │
-    └───────────────┘                  └─────────────────┘
+    ┌────┴──────────┐  ┌──────────────┐  ┌────────┴────────┐
+    │ Oracle DB(s)  │  │ PostgreSQL(s)│  │  MongoDB(s)     │
+    └───────────────┘  └──────────────┘  └─────────────────┘
 ```
 
 ### Đặc điểm nổi bật
@@ -105,7 +105,7 @@ PROD_PASS=your_password_here
 KEY_A=replace-with-strong-random-key
 ```
 
-> **Field reference (per database):** `type` (`oracle` | `mongo`), `host`, `port`, `service` (bắt buộc nếu `type: oracle`) hoặc `database` (bắt buộc nếu `type: mongo`), `user`, `password`, và `ssh` (optional — xem mục [SSH Tunnel Tích Hợp](#ssh-tunnel-tích-hợp)).
+> **Field reference (per database):** `type` (`oracle` | `postgres` | `mongo`), `host`, `port`, `service` (bắt buộc nếu `type: oracle`) hoặc `database` (bắt buộc nếu `type: postgres` hoặc `type: mongo`), `user`, `password`, và `ssh` (optional — xem mục [SSH Tunnel Tích Hợp](#ssh-tunnel-tích-hợp)).
 >
 > **Field reference (per source):** `apiKey`, và `access` — map mỗi DB mà source được dùng. Mỗi entry có 2 dạng:
 > - **Rút gọn:** `<dbName>: [capabilities]`
@@ -421,6 +421,9 @@ API key **chỉ được chấp nhận qua `x-api-key` header** (query string `?
 | `sql_list_tables` | Liệt kê tất cả tables trong Oracle database. |
 | `sql_get_columns` | Lấy chi tiết columns (tên, kiểu, nullable, comments) của một table. |
 | `sql_get_constraints` | Lấy constraints (PK, FK, Unique) của một table. |
+| `pg_list_tables` | Liệt kê tất cả tables trong PostgreSQL database (mặc định schema `public`). |
+| `pg_get_columns` | Lấy chi tiết columns (tên, kiểu, nullable, comments) của một table PostgreSQL. |
+| `pg_get_constraints` | Lấy constraints (PK, FK, Unique) của một table PostgreSQL. |
 | `mongo_list_collections` | Liệt kê tất cả collections trong MongoDB database. |
 | `mongo_get_schema` | Lấy schema suy luận (document count, sample document) của một collection. |
 
@@ -429,6 +432,7 @@ API key **chỉ được chấp nhận qua `x-api-key` header** (query string `?
 | Tool | Mô tả |
 |---|---|
 | `sql_read` | Thực thi SELECT query trên Oracle. DML/DDL bị chặn. Bắt buộc schema prefix. |
+| `pg_read` | Thực thi SELECT query trên PostgreSQL. DML/DDL bị chặn. Kết quả giới hạn 100 rows (cờ `truncated`). |
 | `mongo_read` | Thực thi find (SELECT) trên MongoDB. Write operations bị chặn. |
 
 ### Write (Two-Step Confirmation)
@@ -436,6 +440,7 @@ API key **chỉ được chấp nhận qua `x-api-key` header** (query string `?
 | Tool | Mô tả |
 |---|---|
 | `sql_write` | Thực thi DML (INSERT/UPDATE/DELETE) trên Oracle. **Quy trình 2 bước:** lần gọi đầu trả về preview + `confirmation_token`, lần gọi thứ hai kèm token mới thực thi. |
+| `pg_write` | Thực thi DML (INSERT/UPDATE/DELETE) trên PostgreSQL. **Quy trình 2 bước tương tự**, kèm shadow preview cho UPDATE/DELETE. |
 | `mongo_write` | Thực thi write operations (insertOne/updateMany/deleteMany) trên MongoDB. **Quy trình 2 bước tương tự.** |
 
 ### Script Execution (Two-Step Confirmation)
@@ -443,6 +448,7 @@ API key **chỉ được chấp nhận qua `x-api-key` header** (query string `?
 | Tool | Mô tả |
 |---|---|
 | `sql_execute_script` | Thực thi PL/SQL scripts phức tạp (`DECLARE...BEGIN...END` anonymous blocks). Hỗ trợ multi-block scripts (tách bằng `/`), tự động capture `DBMS_OUTPUT`. **Quy trình 2 bước:** lần gọi đầu phân tích script + trả `confirmation_token`, lần gọi thứ hai thực thi. DDL bị chặn ngay cả trong PL/SQL. |
+| `pg_execute_script` | Thực thi PostgreSQL script (nhiều statement và/hoặc `DO $$ ... $$` blocks) trong **một transaction** (COMMIT khi thành công, ROLLBACK khi lỗi). Tự động capture `NOTICE` (RAISE NOTICE). **Quy trình 2 bước.** DDL bị chặn. |
 
 ---
 
@@ -475,6 +481,14 @@ SQL Input → Parser (node-sql-parser AST)
 - **DBMS_OUTPUT Capture**: Tự động enable và drain `DBMS_OUTPUT` buffer sau mỗi block (max 5000 lines).
 - **Multi-Block Support**: Scripts chứa nhiều anonymous blocks tách bằng `/` được thực thi tuần tự trên cùng connection (cùng transaction context).
 
+### PostgreSQL Safety
+
+- **DDL Blocking**: `DROP`, `TRUNCATE`, `ALTER`, `CREATE`, `GRANT`, `REVOKE` bị chặn ở cả AST parser (dialect `postgresql`) và regex fallback.
+- **Read/Write Isolation**: `pg_read` chỉ cho phép SELECT; `pg_write` chỉ cho phép INSERT/UPDATE/DELETE. SELECT giới hạn 100 rows (cờ `truncated`).
+- **Shadow Preview**: Với UPDATE/DELETE, tự sinh SELECT cùng WHERE clause để preview rows bị ảnh hưởng; từ chối đoán khi không chắc chắn.
+- **Transactional Script**: `pg_execute_script` chạy toàn bộ script trong **một transaction** — COMMIT khi thành công, ROLLBACK khi lỗi — và capture `NOTICE` (RAISE NOTICE).
+- **Confirmation Token**: Giống Oracle — single-use, TTL 5 phút, khớp database + payload gốc, áp dụng cho `pg_write` và `pg_execute_script`.
+
 ### MongoDB Safety
 
 - **Read Isolation**: `mongo_read` chỉ cho phép `find`. 
@@ -506,6 +520,12 @@ db-remote/
 │   │   │   ├── plsql-parser.ts     # PL/SQL block parser + DDL guard
 │   │   │   ├── plsql-executor.ts   # PL/SQL script execution + DBMS_OUTPUT capture
 │   │   │   └── schema.ts           # Tables, columns, constraints metadata
+│   │   ├── postgres/
+│   │   │   ├── pool.ts             # PostgreSQL connection pool (pg.Pool)
+│   │   │   ├── executor.ts         # SELECT/DML execution + shadow preview
+│   │   │   ├── parser.ts           # SQL AST parser (dialect postgresql) + DDL blocker
+│   │   │   ├── script.ts           # Script execution (1 transaction) + NOTICE capture
+│   │   │   └── schema.ts           # Tables, columns, constraints metadata (information_schema/pg_catalog)
 │   │   └── mongo/
 │   │       ├── pool.ts             # MongoDB client pool
 │   │       ├── executor.ts         # find/insertOne/updateMany/deleteMany
@@ -521,6 +541,12 @@ db-remote/
 │       ├── sql-read.ts             # Tool: sql_read
 │       ├── sql-write.ts            # Tool: sql_write
 │       ├── sql-execute-script.ts   # Tool: sql_execute_script
+│       ├── pg-list-tables.ts       # Tool: pg_list_tables
+│       ├── pg-get-columns.ts       # Tool: pg_get_columns
+│       ├── pg-get-constraints.ts   # Tool: pg_get_constraints
+│       ├── pg-read.ts              # Tool: pg_read
+│       ├── pg-write.ts             # Tool: pg_write
+│       ├── pg-execute-script.ts    # Tool: pg_execute_script
 │       ├── mongo-list-collections.ts  # Tool: mongo_list_collections
 │       ├── mongo-get-schema.ts     # Tool: mongo_get_schema
 │       ├── mongo-read.ts           # Tool: mongo_read

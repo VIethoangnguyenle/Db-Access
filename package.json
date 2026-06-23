@@ -29,6 +29,7 @@
     "mongodb": "^7.2.0",
     "node-sql-parser": "^5.4.0",
     "oracledb": "^6.10.0",
+    "pg": "^8.22.0",
     "ssh2": "^1.17.0",
     "zod": "^4.3.6"
   },
@@ -37,6 +38,7 @@
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.6.0",
     "@types/oracledb": "^6.10.3",
+    "@types/pg": "^8.20.0",
     "@types/ssh2": "^1.15.5",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3"

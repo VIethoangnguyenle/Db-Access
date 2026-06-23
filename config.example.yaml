@@ -23,6 +23,16 @@ databases:
   #     user: ssh-user
   #     # port: 22
   #     # privateKey: ~/.ssh/id_rsa   # khai nếu muốn dùng ssh2 + key cụ thể
+
+  # PostgreSQL — bắt buộc khai `database` (không dùng `service`).
+  # pg_analytics:
+  #   type: postgres
+  #   host: 127.0.0.1
+  #   port: 5432
+  #   database: analytics
+  #   user: ${PG_USER}
+  #   password: ${PG_PASS}
+  #   # ssh: { host: xx.xxx.xx.xx, user: ssh-user }   # tunnel giống Oracle
 sources:
   agent_a:
     apiKey: ${KEY_A}

@@ -15,11 +15,11 @@ export type SshConfig = z.infer<typeof sshSchema>;
 
 export const dbSchema = z
   .object({
-    type: z.enum(["oracle", "mongo"]),
+    type: z.enum(["oracle", "mongo", "postgres"]),
     host: z.string().min(1),
     port: z.number().int().positive(),
     service: z.string().optional(),  // oracle service name
-    database: z.string().optional(), // mongo database name
+    database: z.string().optional(), // mongo / postgres database name
     user: z.string().min(1),
     password: z.string(),
     ssh: sshSchema.optional(),
@@ -27,8 +27,8 @@ export const dbSchema = z
   .refine((d) => d.type !== "oracle" || !!d.service, {
     message: "oracle database requires 'service'",
   })
-  .refine((d) => d.type !== "mongo" || !!d.database, {
-    message: "mongo database requires 'database'",
+  .refine((d) => !["mongo", "postgres"].includes(d.type) || !!d.database, {
+    message: "mongo/postgres database requires 'database'",
   });
 export type RawDb = z.infer<typeof dbSchema>;
 
