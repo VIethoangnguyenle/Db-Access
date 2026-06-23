@@ -14,7 +14,9 @@ import {shutdownAll} from "./net/tunnel-manager.js";
 import {createServer} from "./server.js";
 import {Source} from "./config/schema.js";
 
-dotenv.config({override: true});
+// quiet: true — dotenv v17 in ra stdout 1 banner; ở stdio mode banner đó sẽ
+// làm hỏng luồng JSON-RPC của MCP. Tắt để stdout chỉ còn protocol.
+dotenv.config({override: true, quiet: true});
 
 const CONFIG_PATH = process.env.CONFIG_PATH || "./config.yaml";
 initConfig(CONFIG_PATH);
@@ -25,7 +27,7 @@ initSourceIndex();
 // Session HTTP mới sẽ dùng source/quyền mới; session đang mở giữ snapshot cũ.
 watchFile(CONFIG_PATH, {interval: 1000}, (curr, prev) => {
   if (curr.mtimeMs === prev.mtimeMs) return;
-  dotenv.config({override: true});
+  dotenv.config({override: true, quiet: true});
   const r = reloadConfig(CONFIG_PATH);
   if (r.ok) {
     initSourceIndex();
