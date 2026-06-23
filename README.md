@@ -409,6 +409,122 @@ API key **chỉ được chấp nhận qua `x-api-key` header** (query string `?
 
 ---
 
+## Triển khai 2 máy: Máy A (server + tunnel) ↔ Máy B (client từ xa)
+
+Mô hình: **chỉ Máy A kết nối tới DB** (qua SSH tunnel), chạy MCP server. **Máy B kết nối DB *gián tiếp* qua Máy A** — agent trên Máy B chỉ nói chuyện HTTP với MCP server của Máy A, không bao giờ thấy credential DB (chỉ cầm `apiKey`).
+
+```
+        ┌─────────────── Máy B (client từ xa) ───────────────┐
+        │  Antigravity / Claude / Codex                      │
+        │      │  HTTP + x-api-key (hoặc Bearer)             │
+        └──────┼──────────────────────────────────────────────┘
+               │  http://<MÁY_A_IP>:3000/mcp
+        ┌──────▼──────────────── Máy A (máy chính) ───────────┐
+        │  MCP server (PORT=3000)                             │
+        │      │  SSH tunnel (server tự quản qua `ssh:` block)│
+        └──────┼──────────────────────────────────────────────┘
+               │  ssh -N -L … bastion → DB
+        ┌──────▼──────┐
+        │  Database    │
+        └──────────────┘
+```
+
+### 1. Máy A — `config.yaml` (DB qua SSH tunnel) + chạy server
+
+DB khai `ssh:` block để **server tự mở/giữ tunnel** (không cần `ssh -L` thủ công). Khai **hai source**: `agent_a` cho chính Máy A, `agent_b` cho Máy B — mỗi source một `apiKey` + quyền riêng.
+
+```yaml
+# Máy A: config.yaml
+databases:
+  oracle_prod:
+    type: oracle
+    host: 127.0.0.1        # nhìn từ phía bastion (đầu xa của tunnel)
+    port: 1521
+    service: XEPDB1
+    user: ${PROD_USER}
+    password: ${PROD_PASS}
+    ssh:
+      host: xx.xxx.xx.xx   # bastion / máy có thể thấy DB
+      user: ssh-user
+      # privateKey: ~/.ssh/id_rsa   # bỏ trống → server spawn `ssh` hệ thống (dùng ~/.ssh/config + agent)
+
+sources:
+  agent_a:                 # agent chạy ngay trên Máy A
+    apiKey: ${KEY_A}
+    access:
+      oracle_prod: { capabilities: [read, write], description: "DB prod" }
+  agent_b:                 # agent từ Máy B kết nối vào
+    apiKey: ${KEY_B}
+    access:
+      oracle_prod: { capabilities: [read], description: "DB prod (chỉ đọc)" }
+```
+
+```bash
+# Máy A: chạy server (lắng nghe 0.0.0.0:3000, endpoint /mcp)
+export PROD_USER=system PROD_PASS=... KEY_A=key-cho-A KEY_B=key-cho-B
+PORT=3000 CONFIG_PATH=./config.yaml node dist/index.js
+# (hoặc dùng systemd unit mcp-db-tools.service)
+```
+
+> Nếu bạn đã tự chạy tunnel thủ công (`ssh -N -L 1521:127.0.0.1:1521 ssh-user@xx.xxx.xx.xx`) thì **bỏ `ssh:` block**, đặt `host: 127.0.0.1` + `port: 1521` trỏ thẳng vào local-forward.
+
+**Agent ngay trên Máy A** trỏ về localhost:
+
+```json
+{
+  "mcpServers": {
+    "db-remote": {
+      "serverUrl": "http://127.0.0.1:3000/mcp",
+      "headers": { "x-api-key": "key-cho-A" }
+    }
+  }
+}
+```
+
+### 2. Máy B — client trỏ tới Máy A
+
+**Cách 1 — Trực tiếp qua IP Máy A** (mạng nội bộ / VPN cho phép tới cổng 3000):
+
+```json
+{
+  "mcpServers": {
+    "db-remote": {
+      "serverUrl": "http://<MÁY_A_IP>:3000/mcp",
+      "headers": { "x-api-key": "key-cho-B" }
+    }
+  }
+}
+```
+
+Hoặc bằng script:
+
+```bash
+# trên Máy B
+scripts/setup-client.sh --url http://<MÁY_A_IP>:3000/mcp --key key-cho-B
+```
+
+**Cách 2 — Không expose cổng 3000: SSH tunnel B → A** (khuyến nghị khi Máy A không nên mở 3000 ra ngoài). Trên Máy B forward 3000 của A về local rồi trỏ client vào `127.0.0.1`:
+
+```bash
+# trên Máy B: đưa cổng MCP của Máy A về local
+ssh -N -L 3000:127.0.0.1:3000 user@<MÁY_A_IP>
+```
+
+```json
+{
+  "mcpServers": {
+    "db-remote": {
+      "serverUrl": "http://127.0.0.1:3000/mcp",
+      "headers": { "x-api-key": "key-cho-B" }
+    }
+  }
+}
+```
+
+> **Bảo mật:** server bind `0.0.0.0:3000` nên **luôn** đặt sau firewall/VPN, hoặc dùng **Cách 2** để không phơi cổng 3000. Mỗi máy/agent dùng `apiKey` riêng (`agent_a` vs `agent_b`) để thu hồi hoặc giới hạn quyền độc lập — Máy B chỉ `read` trong ví dụ trên. Xem thêm [Security Recommendation](#security-recommendation).
+
+---
+
 ## Available Tools
 
 > **Tool theo thao tác, không theo loại DB:** các tool `sql_*` dùng chung cho **Oracle** và **PostgreSQL** — server tự chọn driver đúng dựa trên `type` của `db_name` lúc gọi tool (xem `src/drivers/relational.ts`). Thêm một relational DB mới (cùng loại) **không phát sinh tool mới**. MongoDB giữ bộ `mongo_*` riêng vì paradigm khác (collection/find thay vì SQL).

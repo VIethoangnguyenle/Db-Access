@@ -45,3 +45,11 @@ sources:
         capabilities: [read]
         description: "DB bán hàng: đơn hàng, khách hàng (chỉ đọc)"
       # mongo_logs: [read]   # dạng rút gọn vẫn dùng được
+
+  # Triển khai 2 máy: Máy A chạy server + giữ tunnel; Máy B kết nối DB QUA Máy A.
+  # Mỗi máy/agent một source + apiKey riêng để thu hồi/giới hạn quyền độc lập.
+  # Xem README mục "Triển khai 2 máy".
+  # agent_b:               # agent từ Máy B (client từ xa) → http://<MÁY_A_IP>:3000/mcp
+  #   apiKey: ${KEY_B}
+  #   access:
+  #     oracle_prod: { capabilities: [read], description: "DB prod (chỉ đọc) cho Máy B" }
