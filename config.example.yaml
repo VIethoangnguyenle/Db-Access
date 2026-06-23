@@ -33,6 +33,15 @@ databases:
   #   user: ${PG_USER}
   #   password: ${PG_PASS}
   #   # ssh: { host: xx.xxx.xx.xx, user: ssh-user }   # tunnel giống Oracle
+
+  # MongoDB — bắt buộc khai `database`.
+  # mongo_logs:
+  #   type: mongo
+  #   host: 127.0.0.1
+  #   port: 27017
+  #   database: logs
+  #   user: ${MONGO_USER}
+  #   password: ${MONGO_PASS}
 sources:
   agent_a:
     apiKey: ${KEY_A}
@@ -49,7 +58,14 @@ sources:
   # Triển khai 2 máy: Máy A chạy server + giữ tunnel; Máy B kết nối DB QUA Máy A.
   # Mỗi máy/agent một source + apiKey riêng để thu hồi/giới hạn quyền độc lập.
   # Xem README mục "Triển khai 2 máy".
+  #
+  # MỘT source có thể cấp NHIỀU DB (oracle + postgres + mongo) — Máy B chỉ mở 1
+  # kết nối MCP là dùng được tất cả. Quyền siết theo từng DB độc lập:
+  #   list_databases chỉ trả về 3 DB dưới đây; sql_write trên oracle_prod (chỉ
+  #   read) bị từ chối, nhưng trên pg_analytics (read+write) thì được.
   # agent_b:               # agent từ Máy B (client từ xa) → http://<MÁY_A_IP>:3000/mcp
   #   apiKey: ${KEY_B}
   #   access:
-  #     oracle_prod: { capabilities: [read], description: "DB prod (chỉ đọc) cho Máy B" }
+  #     oracle_prod:  { capabilities: [read],        description: "DB prod (chỉ đọc) cho Máy B" }
+  #     pg_analytics: { capabilities: [read, write], description: "DB phân tích" }
+  #     mongo_logs:   [read]    # dạng rút gọn vẫn dùng được

@@ -431,7 +431,7 @@ Mô hình: **chỉ Máy A kết nối tới DB** (qua SSH tunnel), chạy MCP se
 
 ### 1. Máy A — `config.yaml` (DB qua SSH tunnel) + chạy server
 
-DB khai `ssh:` block để **server tự mở/giữ tunnel** (không cần `ssh -L` thủ công). Khai **hai source**: `agent_a` cho chính Máy A, `agent_b` cho Máy B — mỗi source một `apiKey` + quyền riêng.
+DB khai `ssh:` block để **server tự mở/giữ tunnel** (không cần `ssh -L` thủ công). Khai **hai source**: `agent_a` cho chính Máy A, `agent_b` cho Máy B — mỗi source một `apiKey` + quyền riêng. **Một source cấp được nhiều DB** (oracle + postgres + mongo); Máy B chỉ mở **một** kết nối MCP là dùng được tất cả DB của nó.
 
 ```yaml
 # Máy A: config.yaml
@@ -447,21 +447,42 @@ databases:
       host: xx.xxx.xx.xx   # bastion / máy có thể thấy DB
       user: ssh-user
       # privateKey: ~/.ssh/id_rsa   # bỏ trống → server spawn `ssh` hệ thống (dùng ~/.ssh/config + agent)
+  pg_analytics:
+    type: postgres
+    host: 127.0.0.1
+    port: 5432
+    database: analytics
+    user: ${PG_USER}
+    password: ${PG_PASS}
+  mongo_logs:
+    type: mongo
+    host: 127.0.0.1
+    port: 27017
+    database: logs
+    user: ${MONGO_USER}
+    password: ${MONGO_PASS}
 
 sources:
-  agent_a:                 # agent chạy ngay trên Máy A
+  agent_a:                 # agent chạy ngay trên Máy A — full quyền
     apiKey: ${KEY_A}
     access:
-      oracle_prod: { capabilities: [read, write], description: "DB prod" }
-  agent_b:                 # agent từ Máy B kết nối vào
+      oracle_prod:  { capabilities: [read, write, script], description: "DB prod" }
+      pg_analytics: { capabilities: [read, write], description: "DB phân tích" }
+      mongo_logs:   [read]
+  agent_b:                 # agent từ Máy B — NHIỀU DB, quyền siết theo từng DB
     apiKey: ${KEY_B}
     access:
-      oracle_prod: { capabilities: [read], description: "DB prod (chỉ đọc)" }
+      oracle_prod:  { capabilities: [read],        description: "DB prod (chỉ đọc)" }
+      pg_analytics: { capabilities: [read, write], description: "DB phân tích" }
+      mongo_logs:   [read]
 ```
+
+> Với cấu hình trên, agent Máy B gọi `list_databases` chỉ thấy đúng **3 DB** này. Server route theo `db_name`: `sql_*` cho `oracle_prod`/`pg_analytics`, `mongo_*` cho `mongo_logs`. Quyền **per-DB**: `sql_write` trên `oracle_prod` (chỉ `read`) bị từ chối, nhưng trên `pg_analytics` (có `write`) thì chạy được.
 
 ```bash
 # Máy A: chạy server (lắng nghe 0.0.0.0:3000, endpoint /mcp)
-export PROD_USER=system PROD_PASS=... KEY_A=key-cho-A KEY_B=key-cho-B
+export PROD_USER=system PROD_PASS=... PG_USER=... PG_PASS=... MONGO_USER=... MONGO_PASS=...
+export KEY_A=key-cho-A KEY_B=key-cho-B
 PORT=3000 CONFIG_PATH=./config.yaml node dist/index.js
 # (hoặc dùng systemd unit mcp-db-tools.service)
 ```
