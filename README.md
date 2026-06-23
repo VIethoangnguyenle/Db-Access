@@ -19,7 +19,7 @@
 │                        │                                         │
 │              ┌─────────┴──────────┐                              │
 │              │   Tool Registry    │                              │
-│              │  (17 MCP Tools)    │                              │
+│              │  (11 MCP Tools)    │                              │
 
 │              └─────────┬──────────┘                              │
 │       ┌────────────────┼────────────────┐                        │
@@ -411,6 +411,8 @@ API key **chỉ được chấp nhận qua `x-api-key` header** (query string `?
 
 ## Available Tools
 
+> **Tool theo thao tác, không theo loại DB:** các tool `sql_*` dùng chung cho **Oracle** và **PostgreSQL** — server tự chọn driver đúng dựa trên `type` của `db_name` lúc gọi tool (xem `src/drivers/relational.ts`). Thêm một relational DB mới (cùng loại) **không phát sinh tool mới**. MongoDB giữ bộ `mongo_*` riêng vì paradigm khác (collection/find thay vì SQL).
+>
 > **Capability gating:** mỗi tool yêu cầu source phải có capability tương ứng trên database đó (`access: { <dbName>: [...] }` trong `config.yaml`): nhóm *Discovery & Schema* và *Query & Read* cần `read`; nhóm *Write* cần `write`; `sql_execute_script` cần `script`. Thiếu capability → tool call bị từ chối.
 
 ### Discovery & Schema
@@ -418,12 +420,9 @@ API key **chỉ được chấp nhận qua `x-api-key` header** (query string `?
 | Tool | Mô tả |
 |---|---|
 | `list_databases` | Liệt kê các databases mà **source hiện tại** (theo `x-api-key`) được cấp quyền truy cập, kèm `type` và `capabilities` (`read`/`write`/`script`) tương ứng. Gọi đầu tiên để biết databases nào khả dụng. |
-| `sql_list_tables` | Liệt kê tất cả tables trong Oracle database. |
-| `sql_get_columns` | Lấy chi tiết columns (tên, kiểu, nullable, comments) của một table. |
-| `sql_get_constraints` | Lấy constraints (PK, FK, Unique) của một table. |
-| `pg_list_tables` | Liệt kê tất cả tables trong PostgreSQL database (mặc định schema `public`). |
-| `pg_get_columns` | Lấy chi tiết columns (tên, kiểu, nullable, comments) của một table PostgreSQL. |
-| `pg_get_constraints` | Lấy constraints (PK, FK, Unique) của một table PostgreSQL. |
+| `sql_list_tables` | Liệt kê tất cả tables trong relational database (**Oracle** hoặc **PostgreSQL** — tự chọn driver theo `type` của DB). |
+| `sql_get_columns` | Lấy chi tiết columns (tên, kiểu, nullable, comments) của một table (Oracle/PostgreSQL). |
+| `sql_get_constraints` | Lấy constraints (PK, FK, Unique) của một table (Oracle/PostgreSQL). |
 | `mongo_list_collections` | Liệt kê tất cả collections trong MongoDB database. |
 | `mongo_get_schema` | Lấy schema suy luận (document count, sample document) của một collection. |
 
@@ -431,24 +430,21 @@ API key **chỉ được chấp nhận qua `x-api-key` header** (query string `?
 
 | Tool | Mô tả |
 |---|---|
-| `sql_read` | Thực thi SELECT query trên Oracle. DML/DDL bị chặn. Bắt buộc schema prefix. |
-| `pg_read` | Thực thi SELECT query trên PostgreSQL. DML/DDL bị chặn. Kết quả giới hạn 100 rows (cờ `truncated`). |
+| `sql_read` | Thực thi SELECT query trên relational DB (Oracle/PostgreSQL). DML/DDL bị chặn. Oracle **bắt buộc schema prefix**; PostgreSQL thì không (giới hạn 100 rows, cờ `truncated`). |
 | `mongo_read` | Thực thi find (SELECT) trên MongoDB. Write operations bị chặn. |
 
 ### Write (Two-Step Confirmation)
 
 | Tool | Mô tả |
 |---|---|
-| `sql_write` | Thực thi DML (INSERT/UPDATE/DELETE) trên Oracle. **Quy trình 2 bước:** lần gọi đầu trả về preview + `confirmation_token`, lần gọi thứ hai kèm token mới thực thi. |
-| `pg_write` | Thực thi DML (INSERT/UPDATE/DELETE) trên PostgreSQL. **Quy trình 2 bước tương tự**, kèm shadow preview cho UPDATE/DELETE. |
+| `sql_write` | Thực thi DML (INSERT/UPDATE/DELETE) trên relational DB (Oracle/PostgreSQL). **Quy trình 2 bước:** lần gọi đầu trả về shadow preview (UPDATE/DELETE) + `confirmation_token`, lần gọi thứ hai kèm token mới thực thi. |
 | `mongo_write` | Thực thi write operations (insertOne/updateMany/deleteMany) trên MongoDB. **Quy trình 2 bước tương tự.** |
 
 ### Script Execution (Two-Step Confirmation)
 
 | Tool | Mô tả |
 |---|---|
-| `sql_execute_script` | Thực thi PL/SQL scripts phức tạp (`DECLARE...BEGIN...END` anonymous blocks). Hỗ trợ multi-block scripts (tách bằng `/`), tự động capture `DBMS_OUTPUT`. **Quy trình 2 bước:** lần gọi đầu phân tích script + trả `confirmation_token`, lần gọi thứ hai thực thi. DDL bị chặn ngay cả trong PL/SQL. |
-| `pg_execute_script` | Thực thi PostgreSQL script (nhiều statement và/hoặc `DO $$ ... $$` blocks) trong **một transaction** (COMMIT khi thành công, ROLLBACK khi lỗi). Tự động capture `NOTICE` (RAISE NOTICE). **Quy trình 2 bước.** DDL bị chặn. |
+| `sql_execute_script` | Thực thi script trên relational DB (Oracle/PostgreSQL), tự chọn semantics theo `type`. **Oracle:** PL/SQL anonymous blocks (`DECLARE...BEGIN...END`), multi-block tách bằng `/`, capture `DBMS_OUTPUT`. **PostgreSQL:** nhiều statement và/hoặc `DO $$ ... $$` blocks trong **một transaction** (COMMIT/ROLLBACK), capture `NOTICE`. **Quy trình 2 bước**, DDL bị chặn. |
 
 ---
 
@@ -513,6 +509,7 @@ db-remote/
 │   ├── net/
 │   │   └── tunnel-manager.ts        # Server-managed SSH tunnels (ssh2) cho DB có `ssh:` block
 │   ├── drivers/
+│   │   ├── relational.ts            # RelationalDriver interface + registry (chọn Oracle/Postgres theo db type) — sql_* tools dùng layer này
 │   │   ├── oracle/
 │   │   │   ├── pool.ts             # Oracle connection pool (oracledb thin mode)
 │   │   │   ├── executor.ts         # SELECT/DML execution + shadow preview
@@ -541,12 +538,6 @@ db-remote/
 │       ├── sql-read.ts             # Tool: sql_read
 │       ├── sql-write.ts            # Tool: sql_write
 │       ├── sql-execute-script.ts   # Tool: sql_execute_script
-│       ├── pg-list-tables.ts       # Tool: pg_list_tables
-│       ├── pg-get-columns.ts       # Tool: pg_get_columns
-│       ├── pg-get-constraints.ts   # Tool: pg_get_constraints
-│       ├── pg-read.ts              # Tool: pg_read
-│       ├── pg-write.ts             # Tool: pg_write
-│       ├── pg-execute-script.ts    # Tool: pg_execute_script
 │       ├── mongo-list-collections.ts  # Tool: mongo_list_collections
 │       ├── mongo-get-schema.ts     # Tool: mongo_get_schema
 │       ├── mongo-read.ts           # Tool: mongo_read

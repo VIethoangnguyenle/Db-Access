@@ -1,43 +1,39 @@
 import {McpServer} from "@modelcontextprotocol/sdk/server/mcp.js";
 import {z} from "zod";
-import {getDb} from "../config/loader.js";
 import {assertAccess} from "../auth/access.js";
 import {Source} from "../config/schema.js";
-import {parseSql} from "../drivers/oracle/parser.js";
-import {executePreview, executeWrite} from "../drivers/oracle/executor.js";
+import {getRelationalDriver} from "../drivers/relational.js";
 import {createConfirmationToken, validateAndConsumeToken} from "../safety/token-manager.js";
 
 export function registerSqlWrite(server: McpServer, source: Source): void {
     server.tool(
         "sql_write",
-        "Execute DML (INSERT/UPDATE/DELETE) on an Oracle database. Requires a two-step process: First call without a token returns a preview of affected rows and a confirmation_token. Second call WITH the confirmation_token executes the write. DDL and SELECT are blocked.",
+        "Execute DML (INSERT/UPDATE/DELETE) on a relational database (Oracle or PostgreSQL); the backend is selected automatically from the database's type. Requires a two-step process: First call without a token returns a preview of affected rows and a confirmation_token. Second call WITH the confirmation_token executes the write. DDL and SELECT are blocked. NOTE: For Oracle you MUST prefix tables with their schema.",
         {
             db_name: z.string().describe("Database name from list_databases"),
-            sql: z.string().describe("The INSERT, UPDATE, or DELETE statement to execute. RULE: You MUST specify the schema prefix for all tables (e.g., UPDATE SCHEMA_NAME.TABLE_NAME). Querying without a schema is strictly blocked."),
+            sql: z.string().describe("The INSERT, UPDATE, or DELETE statement to execute. For Oracle databases you MUST specify the schema prefix for all tables (e.g., UPDATE SCHEMA_NAME.TABLE_NAME); querying without a schema is blocked. PostgreSQL does not require a schema prefix."),
             confirmation_token: z.string().optional().describe("Required ONLY when confirming a write operation"),
         },
         async ({db_name, sql, confirmation_token}) => {
             try {
                 assertAccess(source, db_name, "write");
 
-                const dbConfig = getDb(db_name);
-                if (!dbConfig || dbConfig.type !== "oracle") {
-                    throw new Error(`Database '${db_name}' not found or is not an Oracle database.`);
-                }
+                const driver = getRelationalDriver(db_name);
+                const parsed = driver.parse(sql);
 
-                const parsed = parseSql(sql);
-
-                // Enforce schema rule strictly
-                if (parsed.tableNames.length > 0) {
-                    const missingSchema = parsed.tableNames.find(t => !t.includes("."));
-                    if (missingSchema) {
-                        throw new Error(`Rule Violation: Table '${missingSchema}' is missing a schema prefix. You MUST specify the schema (e.g. SCHEMA_NAME.${missingSchema}).`);
-                    }
-                } else {
-                    // Fallback to regex if parsing failed
-                    const hasSchema = /\b(?:FROM|JOIN|UPDATE|INTO)\s+[a-zA-Z0-9_"]+\.[a-zA-Z0-9_"]+/i.test(sql);
-                    if (!hasSchema) {
-                        throw new Error("Rule Violation: You MUST include the schema name in your query (e.g. SCHEMA_NAME.TABLE_NAME).");
+                // Enforce schema-prefix rule only for backends that require it (Oracle).
+                if (driver.enforceSchemaPrefix) {
+                    if (parsed.tableNames.length > 0) {
+                        const missingSchema = parsed.tableNames.find(t => !t.includes("."));
+                        if (missingSchema) {
+                            throw new Error(`Rule Violation: Table '${missingSchema}' is missing a schema prefix. You MUST specify the schema (e.g. SCHEMA_NAME.${missingSchema}).`);
+                        }
+                    } else {
+                        // Fallback to regex if parsing failed
+                        const hasSchema = /\b(?:FROM|JOIN|UPDATE|INTO)\s+[a-zA-Z0-9_"]+\.[a-zA-Z0-9_"]+/i.test(sql);
+                        if (!hasSchema) {
+                            throw new Error("Rule Violation: You MUST include the schema name in your query (e.g. SCHEMA_NAME.TABLE_NAME).");
+                        }
                     }
                 }
 
@@ -47,7 +43,7 @@ export function registerSqlWrite(server: McpServer, source: Source): void {
 
                 if (confirmation_token) {
                     validateAndConsumeToken(confirmation_token, db_name, sql);
-                    const result = await executeWrite(db_name, sql);
+                    const result = await driver.executeWrite(db_name, sql);
                     return {
                         content: [{
                             type: "text",
@@ -60,7 +56,7 @@ export function registerSqlWrite(server: McpServer, source: Source): void {
                 } else {
                     let previewResult = null;
                     if (parsed.type === "UPDATE" || parsed.type === "DELETE") {
-                        previewResult = await executePreview(db_name, sql, parsed);
+                        previewResult = await driver.executePreview(db_name, sql, parsed);
                     }
 
                     const token = createConfirmationToken(db_name, parsed.type, sql);
