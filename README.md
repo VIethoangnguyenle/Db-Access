@@ -1,4 +1,4 @@
-# DB Remote — MCP Database Server
+# DB Access — MCP Database Server
 
 > Internal [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server cho phép AI agents / IDEs truy vấn **Oracle**, **PostgreSQL** và **MongoDB** databases từ xa, an toàn.
 
@@ -8,7 +8,7 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                        DB Remote Server                          │
+│                        DB Access Server                          │
 │                                                                  │
 │  ┌──────────┐   ┌──────────────┐   ┌───────────────────────────┐│
 │  │ Stdio    │   │ Streamable   │   │ Legacy SSE                ││
@@ -311,7 +311,7 @@ Nếu DB trước đây cần một `mcp-db-tunnel.service` (SSH port-forward) �
 
 ```bash
 scripts/setup-client.sh --url http://<host>:3000/mcp --key <apiKey> \
-  [--name db-remote] [--tools antigravity,claude,codex] [--key-env DB_REMOTE_API_KEY]
+  [--name db-access] [--tools antigravity,claude,codex] [--key-env DB_ACCESS_API_KEY]
 ```
 
 Script sẽ: chạy `claude mcp add` (x-api-key), merge `~/.gemini/antigravity/mcp_config.json` (serverUrl + x-api-key), và `codex mcp add --url ... --bearer-token-env-var` (Codex đọc token từ env var — script nhắc bạn `export <KEY_ENV>=<key>`). Bỏ qua tool nào không cài. Dưới đây là cấu hình thủ công tương ứng:
@@ -321,7 +321,7 @@ Script sẽ: chạy `claude mcp add` (x-api-key), merge `~/.gemini/antigravity/m
 ```json
 {
   "mcpServers": {
-    "db-remote": {
+    "db-access": {
       "serverUrl": "http://<YOUR_IP>:3000/mcp",
       "headers": {
         "x-api-key": "your-secure-api-key-here"
@@ -338,11 +338,11 @@ Script sẽ: chạy `claude mcp add` (x-api-key), merge `~/.gemini/antigravity/m
 ```json
 {
   "mcpServers": {
-    "db-remote": {
+    "db-access": {
       "command": "node",
-      "args": ["/path/to/db-remote/dist/index.js", "--stdio", "--source", "agent_a"],
+      "args": ["/path/to/db-access/dist/index.js", "--stdio", "--source", "agent_a"],
       "env": {
-        "CONFIG_PATH": "/path/to/db-remote/config.yaml",
+        "CONFIG_PATH": "/path/to/db-access/config.yaml",
         "PROD_USER": "system",
         "PROD_PASS": "your_password",
         "KEY_A": "replace-with-strong-random-key"
@@ -357,16 +357,16 @@ Script sẽ: chạy `claude mcp add` (x-api-key), merge `~/.gemini/antigravity/m
 Codex HTTP MCP chỉ set được **bearer token đọc từ một env var**, không set `x-api-key` tùy ý. Server đã hỗ trợ `Authorization: Bearer <key>` nên dùng được:
 
 ```bash
-codex mcp add db-remote --url http://<YOUR_IP>:3000/mcp --bearer-token-env-var DB_REMOTE_API_KEY
+codex mcp add db-access --url http://<YOUR_IP>:3000/mcp --bearer-token-env-var DB_ACCESS_API_KEY
 # rồi export token để Codex đọc lúc chạy:
-export DB_REMOTE_API_KEY='your-secure-api-key-here'   # thêm vào ~/.bashrc / ~/.zshrc
+export DB_ACCESS_API_KEY='your-secure-api-key-here'   # thêm vào ~/.bashrc / ~/.zshrc
 ```
 
 Tạo entry trong `~/.codex/config.toml`:
 ```toml
-[mcp_servers.db-remote]
+[mcp_servers.db-access]
 url = "http://<YOUR_IP>:3000/mcp"
-bearer_token_env_var = "DB_REMOTE_API_KEY"
+bearer_token_env_var = "DB_ACCESS_API_KEY"
 ```
 
 ### Cursor / Windsurf (SSE — legacy)
@@ -376,7 +376,7 @@ API key **chỉ được chấp nhận qua `x-api-key` header** (query string `?
 ```json
 {
   "mcpServers": {
-    "db-remote": {
+    "db-access": {
       "type": "sse",
       "url": "http://<YOUR_IP>:3000/sse",
       "headers": {
@@ -392,10 +392,10 @@ API key **chỉ được chấp nhận qua `x-api-key` header** (query string `?
 ```json
 {
   "mcpServers": {
-    "db-remote": {
+    "db-access": {
       "command": "node",
       "args": [
-        "/path/to/db-remote/sse-proxy.mjs",
+        "/path/to/db-access/sse-proxy.mjs",
         "--host", "<YOUR_IP>",
         "--port", "3000",
         "--api-key", "your-secure-api-key-here"
@@ -494,7 +494,7 @@ PORT=3000 CONFIG_PATH=./config.yaml node dist/index.js
 ```json
 {
   "mcpServers": {
-    "db-remote": {
+    "db-access": {
       "serverUrl": "http://127.0.0.1:3000/mcp",
       "headers": { "x-api-key": "key-cho-A" }
     }
@@ -509,7 +509,7 @@ PORT=3000 CONFIG_PATH=./config.yaml node dist/index.js
 ```json
 {
   "mcpServers": {
-    "db-remote": {
+    "db-access": {
       "serverUrl": "http://<MÁY_A_IP>:3000/mcp",
       "headers": { "x-api-key": "key-cho-B" }
     }
@@ -534,7 +534,7 @@ ssh -N -L 3000:127.0.0.1:3000 user@<MÁY_A_IP>
 ```json
 {
   "mcpServers": {
-    "db-remote": {
+    "db-access": {
       "serverUrl": "http://127.0.0.1:3000/mcp",
       "headers": { "x-api-key": "key-cho-B" }
     }
@@ -633,7 +633,7 @@ SQL Input → Parser (node-sql-parser AST)
 ## Cấu trúc Project
 
 ```
-db-remote/
+db-access/
 ├── src/
 │   ├── index.ts                    # Entry point — MCP server + transports
 │   ├── server.ts                   # MCP server wiring (tools registration per source)

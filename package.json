@@ -1,5 +1,5 @@
 {
-  "name": "db-remote",
+  "name": "db-access",
   "version": "1.0.0",
   "description": "Internal MCP Server for database querying (Oracle + MongoDB)",
   "main": "dist/index.js",

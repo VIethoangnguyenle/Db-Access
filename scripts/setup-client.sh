@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
-# setup-client.sh — Đăng ký MCP "db-remote" (HTTP) vào Antigravity / Claude Code / Codex.
+# setup-client.sh — Đăng ký MCP "db-access" (HTTP) vào Antigravity / Claude Code / Codex.
 #
 # Cách dùng:
 #   scripts/setup-client.sh --url http://<host>:3000/mcp --key <apiKey> \
-#       [--name db-remote] [--tools antigravity,claude,codex] [--key-env DB_REMOTE_API_KEY]
+#       [--name db-access] [--tools antigravity,claude,codex] [--key-env DB_ACCESS_API_KEY]
 #
 # Auth: server chấp nhận key qua header `x-api-key` HOẶC `Authorization: Bearer`.
 #   - Antigravity / Claude Code: dùng x-api-key.
@@ -12,10 +12,10 @@
 #
 set -euo pipefail
 
-NAME="db-remote"
+NAME="db-access"
 URL=""
 KEY=""
-KEY_ENV="DB_REMOTE_API_KEY"
+KEY_ENV="DB_ACCESS_API_KEY"
 TOOLS="antigravity,claude,codex"
 
 usage() {
