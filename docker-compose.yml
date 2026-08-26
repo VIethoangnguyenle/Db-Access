@@ -3,8 +3,7 @@ services:
     build: .
     container_name: mcp-db-tools
     restart: unless-stopped
-    ports:
-      - "8443:8443"
+    network_mode: "host"
     env_file:
       - .env
     environment:
