@@ -19,6 +19,11 @@ export async function getMongoDb(dbName: string): Promise<Db> {
     const client = new MongoClient(uri, {
       auth: { username: db.user, password: db.password },
       maxPoolSize: 4,
+      // Kết nối qua SSH tunnel: hostname các member trong replica set không route
+      // được từ máy client, nên phải nói chuyện trực tiếp với node đã tunnel.
+      directConnection: true,
+      // Node tunnel tới có thể là secondary của replica set.
+      readPreference: "secondaryPreferred",
     });
     await client.connect();
     clients.set(dbName, client);
