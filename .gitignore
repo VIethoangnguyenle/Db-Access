@@ -4,3 +4,7 @@ dist/
 *.log
 .idea/
 .vscode/
+
+# Cấu hình & ghi chú của deployment thật (repo public — dùng config.example.yaml làm mẫu)
+config.yaml
+note.txt
