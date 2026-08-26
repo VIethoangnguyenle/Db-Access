@@ -3,13 +3,14 @@ import {z} from "zod";
 import {assertAccess} from "../auth/access.js";
 import {Source} from "../config/schema.js";
 import {getRelationalDriver} from "../drivers/relational.js";
+import {withCrossSchemaHint} from "./cross-schema-hint.js";
 
 export function registerSqlRead(server: McpServer, source: Source): void {
     server.tool(
         "sql_read",
         "Execute a SELECT query on a relational database (Oracle or PostgreSQL); the backend is selected automatically from the database's type. DML and DDL are strictly blocked. NOTE: For Oracle you MUST prefix tables with their schema (SCHEMA_NAME.TABLE_NAME).",
         {
-            db_name: z.string().describe("Database name from list_databases"),
+            db_name: z.string().describe("Database name from list_databases. Each db_name is a SEPARATE connection with its own DB user, NOT a schema switch: to read schema X you MUST pass db_name=X, not another database with 'X.' in the SQL."),
             sql: z.string().describe("The SELECT SQL statement to execute. For Oracle databases you MUST specify the schema prefix for all tables (e.g., SELECT * FROM SCHEMA_NAME.TABLE_NAME); querying without a schema is blocked. PostgreSQL does not require a schema prefix."),
         },
         async ({db_name, sql}) => {
@@ -40,8 +41,9 @@ export function registerSqlRead(server: McpServer, source: Source): void {
                 }
 
                 const result = await driver.executeSelect(db_name, sql);
+                const diagnosed = withCrossSchemaHint(result, source, db_name, sql, parsed.tableNames, "read");
                 return {
-                    content: [{type: "text", text: JSON.stringify(result, null, 2)}],
+                    content: [{type: "text", text: JSON.stringify(diagnosed, null, 2)}],
                 };
             } catch (error) {
                 return {

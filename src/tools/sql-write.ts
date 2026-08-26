@@ -4,13 +4,14 @@ import {assertAccess} from "../auth/access.js";
 import {Source} from "../config/schema.js";
 import {getRelationalDriver} from "../drivers/relational.js";
 import {createConfirmationToken, validateAndConsumeToken} from "../safety/token-manager.js";
+import {withCrossSchemaHint} from "./cross-schema-hint.js";
 
 export function registerSqlWrite(server: McpServer, source: Source): void {
     server.tool(
         "sql_write",
         "Execute DML (INSERT/UPDATE/DELETE) on a relational database (Oracle or PostgreSQL); the backend is selected automatically from the database's type. Requires a two-step process: First call without a token returns a preview of affected rows and a confirmation_token. Second call WITH the confirmation_token executes the write. DDL and SELECT are blocked. NOTE: For Oracle you MUST prefix tables with their schema.",
         {
-            db_name: z.string().describe("Database name from list_databases"),
+            db_name: z.string().describe("Database name from list_databases. Each db_name is a SEPARATE connection with its own DB user, NOT a schema switch: to read schema X you MUST pass db_name=X, not another database with 'X.' in the SQL."),
             sql: z.string().describe("The INSERT, UPDATE, or DELETE statement to execute. For Oracle databases you MUST specify the schema prefix for all tables (e.g., UPDATE SCHEMA_NAME.TABLE_NAME); querying without a schema is blocked. PostgreSQL does not require a schema prefix."),
             confirmation_token: z.string().optional().describe("Required ONLY when confirming a write operation"),
         },
@@ -44,6 +45,13 @@ export function registerSqlWrite(server: McpServer, source: Source): void {
                 if (confirmation_token) {
                     validateAndConsumeToken(confirmation_token, db_name, sql);
                     const result = await driver.executeWrite(db_name, sql);
+                    const diagnosed = withCrossSchemaHint(result, source, db_name, sql, parsed.tableNames, "write");
+                    if (diagnosed !== result) {
+                        return {
+                            content: [{type: "text", text: JSON.stringify(diagnosed, null, 2)}],
+                            isError: true,
+                        };
+                    }
                     return {
                         content: [{
                             type: "text",
@@ -57,6 +65,15 @@ export function registerSqlWrite(server: McpServer, source: Source): void {
                     let previewResult = null;
                     if (parsed.type === "UPDATE" || parsed.type === "DELETE") {
                         previewResult = await driver.executePreview(db_name, sql, parsed);
+                    }
+
+                    // Sai db_name thì dừng ngay, đừng cấp token cho một lệnh chắc chắn fail.
+                    const diagnosedPreview = withCrossSchemaHint(previewResult, source, db_name, sql, parsed.tableNames, "write");
+                    if (diagnosedPreview !== previewResult) {
+                        return {
+                            content: [{type: "text", text: JSON.stringify(diagnosedPreview, null, 2)}],
+                            isError: true,
+                        };
                     }
 
                     const token = createConfirmationToken(db_name, parsed.type, sql);
