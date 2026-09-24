@@ -48,6 +48,9 @@ export function deserializeMongoQuery(query: any): any {
     if (Object.keys(query).length === 1 && typeof query.$oid === "string") {
         return new ObjectId(query.$oid);
     }
+    if (Object.keys(query).length === 1 && "$date" in query) {
+        return toDate(query.$date);
+    }
 
     // Common pattern: _id as a string that looks like an ObjectId
     const result: any = {};
@@ -67,6 +70,45 @@ export function deserializeMongoQuery(query: any): any {
     return result;
 }
 
+/** `{ $date: "2026-09-24T00:00:00Z" }` (ISO string hoặc epoch millis) -> Date; giá trị hỏng thì báo lỗi, không lọc sai im lặng. */
+function toDate(value: unknown): Date {
+    const raw = typeof value === "object" && value !== null && "$numberLong" in value
+        ? Number((value as { $numberLong: string }).$numberLong)
+        : value;
+    const date = new Date(raw as string | number);
+    if (Number.isNaN(date.getTime())) {
+        throw new Error(`Invalid $date value: ${JSON.stringify(value)}`);
+    }
+    return date;
+}
+
+export const DEFAULT_FIND_LIMIT = 50;
+export const MAX_FIND_LIMIT = 500;
+
+export interface FindOptions {
+    limit?: number;
+    sort?: Record<string, number>;
+    projection?: Record<string, number>;
+}
+
+/** limit thiếu/hỏng -> mặc định; vượt trần -> trần. Không cho kéo cả collection về một lần. */
+export function clampLimit(limit: number | undefined): number {
+    if (limit === undefined || !Number.isFinite(limit) || limit < 1) return DEFAULT_FIND_LIMIT;
+    return Math.min(Math.floor(limit), MAX_FIND_LIMIT);
+}
+
+/** sort/projection chỉ nhận map field -> số trong tập cho phép (1/-1 cho sort, 0/1 cho projection). */
+export function assertFieldMap(map: unknown, allowed: number[], name: string): void {
+    if (map === undefined) return;
+    if (map === null || typeof map !== "object" || Array.isArray(map)) {
+        throw new Error(`'${name}' must be an object of field -> ${allowed.join("/")}`);
+    }
+    const bad = Object.entries(map).find(([key, value]) => key.startsWith("$") || !allowed.includes(value as number));
+    if (bad) {
+        throw new Error(`Invalid '${name}' entry ${JSON.stringify(bad[0])}: expected ${allowed.join("/")}`);
+    }
+}
+
 /**
  * Executes a find operation.
  */
@@ -74,7 +116,7 @@ export async function executeFind(
     dbName: string,
     collectionName: string,
     filter: any,
-    limit = 50
+    options: FindOptions = {}
 ): Promise<MongoExecutionResult> {
     try {
         const db = await getMongoDb(dbName);
@@ -82,7 +124,11 @@ export async function executeFind(
 
         const parsedFilter = deserializeMongoQuery(filter) || {};
         assertSafeFilter(parsedFilter);
-        const data = await collection.find(parsedFilter).limit(limit).toArray();
+        assertFieldMap(options.sort, [1, -1], "sort");
+        assertFieldMap(options.projection, [0, 1], "projection");
+        const cursor = collection.find(parsedFilter, {projection: options.projection});
+        const sorted = options.sort ? cursor.sort(options.sort as any) : cursor;
+        const data = await sorted.limit(clampLimit(options.limit)).toArray();
 
         return {
             success: true,
@@ -201,7 +247,7 @@ export async function executePreview(
     filter: any
 ): Promise<MongoExecutionResult> {
     // Cap preview to 50 documents
-    const result = await executeFind(dbName, collectionName, filter, 50);
+    const result = await executeFind(dbName, collectionName, filter, {limit: DEFAULT_FIND_LIMIT});
     result.operation = "preview";
     return result;
 }
