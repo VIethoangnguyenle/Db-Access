@@ -7,6 +7,16 @@ const pools = new Map<string, oracledb.Pool>();
 oracledb.outFormat = oracledb.OUT_FORMAT_OBJECT;
 oracledb.fetchAsString = [oracledb.DATE, oracledb.CLOB];
 
+// BLOB mặc định trả về Lob stream (tham chiếu vòng tới connection) ⇒ JSON.stringify văng
+// "circular structure". Fetch thẳng thành Buffer rồi rút gọn, không đổ nguyên nhị phân vào output.
+oracledb.fetchTypeHandler = (metaData) => {
+  if (metaData.dbType !== oracledb.DB_TYPE_BLOB) return undefined;
+  return {
+    type: oracledb.BUFFER,
+    converter: (value) => (Buffer.isBuffer(value) ? `<BLOB ${value.length} bytes>` : null),
+  };
+};
+
 export async function getOraclePool(dbName: string): Promise<oracledb.Pool> {
   const db = getDb(dbName);
   if (!db) throw new Error(`Database configuration '${dbName}' not found`);
