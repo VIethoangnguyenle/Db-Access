@@ -12,6 +12,10 @@ import {registerMongoListCollections} from "./tools/mongo-list-collections.js";
 import {registerMongoGetSchema} from "./tools/mongo-get-schema.js";
 import {registerMongoRead} from "./tools/mongo-read.js";
 import {registerMongoWrite} from "./tools/mongo-write.js";
+import {registerRedisListKeys} from "./tools/redis-list-keys.js";
+import {registerRedisGet} from "./tools/redis-get.js";
+import {registerRedisWrite} from "./tools/redis-write.js";
+import {registerRedisPublish} from "./tools/redis-publish.js";
 
 export function createServer(source: Source): McpServer {
   const server = new McpServer({ name: "mcp-db-tools", version: "2.0.0" });
@@ -26,5 +30,9 @@ export function createServer(source: Source): McpServer {
   registerMongoGetSchema(server, source);
   registerMongoRead(server, source);
   registerMongoWrite(server, source);
+  registerRedisListKeys(server, source);
+  registerRedisGet(server, source);
+  registerRedisWrite(server, source);
+  registerRedisPublish(server, source);
   return server;
 }

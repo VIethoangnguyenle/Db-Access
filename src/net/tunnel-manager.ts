@@ -94,7 +94,7 @@ function openViaSsh2(db: DbConfig): Promise<OpenTunnel> {
     client
       .on("ready", () => {
         const server = net.createServer((sock) => {
-          client.forwardOut(sock.remoteAddress || "127.0.0.1", sock.remotePort || 0, db.host, db.port, (err, stream) => {
+          client.forwardOut(sock.remoteAddress || "127.0.0.1", sock.remotePort || 0, db.host!, db.port!, (err, stream) => {
             if (err) { sock.destroy(); return; }
             sock.pipe(stream).pipe(sock);
           });
@@ -178,7 +178,7 @@ const tunnels = new Map<string, OpenTunnel>();
 
 /** Trả endpoint để driver connect. Mở tunnel (cache theo tên DB) nếu DB có ssh. */
 export async function ensure(db: DbConfig, connector: SshConnector = defaultConnector): Promise<{ host: string; port: number }> {
-  if (!db.ssh) return { host: db.host, port: db.port };
+  if (!db.ssh) return { host: db.host!, port: db.port! };
 
   const existing = tunnels.get(db.name);
   if (existing) return { host: "127.0.0.1", port: existing.localPort };

@@ -592,6 +592,8 @@ ssh -N -L 3000:127.0.0.1:3000 user@<MÁY_A_IP>
 |---|---|
 | `sql_read` | Thực thi SELECT query trên relational DB (Oracle/PostgreSQL). DML/DDL bị chặn. Oracle **bắt buộc schema prefix**; PostgreSQL thì không (giới hạn 100 rows, cờ `truncated`). |
 | `mongo_read` | Thực thi find (SELECT) trên MongoDB. Write operations bị chặn. |
+| `redis_list_keys` | Quét key Redis (SCAN, không block) theo pattern, gom nhóm theo prefix kèm type/TTL. `detail=true` trả danh sách phẳng. |
+| `redis_get` | Đọc một key Redis (string/hash/list/set/zset); tự giải mã value qua **codec chain** khai trong config. |
 
 ### Write (Two-Step Confirmation)
 
@@ -599,6 +601,8 @@ ssh -N -L 3000:127.0.0.1:3000 user@<MÁY_A_IP>
 |---|---|
 | `sql_write` | Thực thi DML (INSERT/UPDATE/DELETE) trên relational DB (Oracle/PostgreSQL). **Quy trình 2 bước:** lần gọi đầu trả về shadow preview (UPDATE/DELETE) + `confirmation_token`, lần gọi thứ hai kèm token mới thực thi. |
 | `mongo_write` | Thực thi write operations (insertOne/updateMany/deleteMany) trên MongoDB. **Quy trình 2 bước tương tự.** |
+| `redis_write` | Vô hiệu hoá cache Redis: `del`/`unlink`/`del_pattern` (giới hạn trong `keyPrefix` của source)/`expire`/`persist`. Cần capability `write`. |
+| `redis_publish` | PUBLISH message tới một channel pub/sub (vd broadcast invalidation cache), hoặc `probe=true` chỉ đếm subscriber. Cần capability `write`. Channel/message là **đặc thù ứng dụng** — mô tả ở `description` của DB trong config. |
 
 ### Script Execution (Two-Step Confirmation)
 

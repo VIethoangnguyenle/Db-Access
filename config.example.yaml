@@ -42,6 +42,28 @@ databases:
   #   database: logs
   #   user: ${MONGO_USER}
   #   password: ${MONGO_PASS}
+
+  # Redis — kết nối qua `sentinels`+`master` HOẶC `host`+`port` trực tiếp.
+  # Giá trị mã hoá: khai `valueCodec` / `passwordCodec` là một CHUỖI bước codec
+  # (plugin, KHÔNG hardcode thuật toán). Codec dựng sẵn: aes, java, json, utf8,
+  # base64, hex, gunzip, inflate. Thêm hệ khác = registerCodec() trong
+  # src/drivers/redis/codec, không sửa tool.
+  # redis_cache:
+  #   type: redis
+  #   sentinels: "10.0.0.1:26379,10.0.0.2:26379,10.0.0.3:26379"   # hoặc: host/port
+  #   master: mymaster
+  #   db: 0
+  #   keyPrefix: "myapp:"      # mọi key/pattern bị ép về trong prefix này
+  #   password: ${REDIS_PASSWORD}
+  #   # Password là ciphertext? Giải bằng chuỗi codec (vd base64 -> AES/CTR -> utf8):
+  #   passwordCodec:
+  #     - { codec: base64 }
+  #     - { codec: aes, mode: ctr, key: "${REDIS_CONFIG_KEY}", keyHash: none, iv: prefix }
+  #     - { codec: utf8 }
+  #   # Value mã hoá rồi Java-serialize (vd AES/CBC IV=0, key=sha256(secret)):
+  #   valueCodec:
+  #     - { codec: aes, mode: cbc, key: "${REDIS_SECRET_KEY}", keyHash: sha256, iv: zero }
+  #     - { codec: java }
 sources:
   agent_a:
     apiKey: ${KEY_A}

@@ -11,6 +11,7 @@ import {initConfig, getConfig, reloadConfig} from "./config/loader.js";
 import {initSourceIndex, resolveSource} from "./auth/resolve-source.js";
 import {extractApiKey} from "./auth/http.js";
 import {shutdownAll} from "./net/tunnel-manager.js";
+import {closeAllRedis} from "./drivers/redis/pool.js";
 import {createServer} from "./server.js";
 import {Source} from "./config/schema.js";
 
@@ -39,7 +40,7 @@ watchFile(CONFIG_PATH, {interval: 1000}, (curr, prev) => {
 
 // Đóng tunnel khi tắt
 for (const sig of ["SIGINT", "SIGTERM"] as const) {
-  process.on(sig, async () => { await shutdownAll(); process.exit(0); });
+  process.on(sig, async () => { await closeAllRedis(); await shutdownAll(); process.exit(0); });
 }
 
 const isStdio = process.argv.includes("--stdio");
