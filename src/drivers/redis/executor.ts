@@ -6,8 +6,16 @@ import { buildPipeline, runPipeline, CodecStep, Codec } from "./codec/registry.j
 
 const MAX_SCAN = 2000;
 
-function valuePipeline(db: DbConfig): Codec[] {
-  return buildPipeline(db.valueCodec as CodecStep[] | undefined);
+/**
+ * Danh sách chuỗi codec ứng viên cho value. Ưu tiên `valueCodecs` (nhiều chuỗi),
+ * nếu không có thì dùng `valueCodec` (một chuỗi). DB trộn nhiều định dạng (AES+java
+ * và JSON thuần trong cùng prefix) thì khai `valueCodecs: [[aes,java],[json]]`.
+ */
+function valuePipelines(db: DbConfig): Codec[][] {
+  const many = db.valueCodecs as CodecStep[][] | undefined;
+  if (many && many.length) return many.map((steps) => buildPipeline(steps));
+  const one = buildPipeline(db.valueCodec as CodecStep[] | undefined);
+  return one.length ? [one] : [];
 }
 
 /** Thêm keyPrefix nếu key chưa mang sẵn prefix đó (tiện cho người gọi). */
@@ -16,27 +24,34 @@ function withPrefix(db: DbConfig, key: string): string {
   return key.startsWith(db.keyPrefix) ? key : `${db.keyPrefix}${key}`;
 }
 
-/** Giải một value bytes qua valueCodec. Lỗi giải → trả thông tin thô + lý do. */
+/**
+ * Giải một value bytes. Thử lần lượt từng chuỗi codec ứng viên, chuỗi nào decode
+ * không ném lỗi thì lấy. Hết chuỗi vẫn fail → trả thông tin thô + lý do mỗi chuỗi.
+ */
 function decodeValue(
-  pipeline: Codec[],
+  pipelines: Codec[][],
   buf: Buffer,
   key: string,
   dbName: string
 ): { decoded: unknown } | { raw: string; bytes: number; note: string } {
-  if (pipeline.length === 0) {
+  if (pipelines.length === 0) {
     // Không khai codec: cố đọc utf8, không được thì base64.
     const text = buf.toString("utf8");
     return { decoded: text.includes("�") ? buf.toString("base64") : text };
   }
-  try {
-    return { decoded: runPipeline(pipeline, buf, { key, dbName }) };
-  } catch (e) {
-    return {
-      raw: buf.subarray(0, 32).toString("base64"),
-      bytes: buf.length,
-      note: `decode lỗi: ${e instanceof Error ? e.message : String(e)}`,
-    };
+  const errors: string[] = [];
+  for (const pipeline of pipelines) {
+    try {
+      return { decoded: runPipeline(pipeline, buf, { key, dbName }) };
+    } catch (e) {
+      errors.push(e instanceof Error ? e.message : String(e));
+    }
   }
+  return {
+    raw: buf.subarray(0, 32).toString("base64"),
+    bytes: buf.length,
+    note: `decode lỗi (đã thử ${pipelines.length} chuỗi): ${errors.join(" | ")}`,
+  };
 }
 
 export interface ScanResult {
@@ -111,11 +126,11 @@ export async function readKey(dbName: string, rawKey: string): Promise<ReadResul
   const db = getDb(dbName)!;
   const client: Redis = await getRedis(dbName);
   const key = withPrefix(db, rawKey);
-  const pipeline = valuePipeline(db);
+  const pipelines = valuePipelines(db);
 
   const type = await client.type(key);
   const ttl = await client.ttl(key);
-  const dec = (b: Buffer) => decodeValue(pipeline, b, key, dbName);
+  const dec = (b: Buffer) => decodeValue(pipelines, b, key, dbName);
 
   let value: unknown;
   switch (type) {

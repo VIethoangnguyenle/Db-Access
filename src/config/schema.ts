@@ -44,8 +44,13 @@ export const dbSchema = z
     master: z.string().optional(),      // tên master khi dùng sentinel
     db: z.number().int().nonnegative().optional(), // chỉ số DB (0..15)
     keyPrefix: z.string().optional(),   // prefix nghiệp vụ (vd "vietbank-sme")
-    // Chuỗi codec giải GIÁ TRỊ value và giải MẬT KHẨU (nếu password là ciphertext).
+    // Chuỗi codec giải GIÁ TRỊ value. Một DB có thể trộn nhiều định dạng (vd
+    // dvnh-common: security-cache = AES+java, non-security-cache = JSON thuần)
+    // nên cho phép khai NHIỀU chuỗi ứng viên qua `valueCodecs`: thử lần lượt,
+    // chuỗi nào decode không lỗi thì lấy. `valueCodec` (số ít) là 1 chuỗi duy nhất.
     valueCodec: z.array(codecStepSchema).optional(),
+    valueCodecs: z.array(z.array(codecStepSchema)).optional(),
+    // Giải MẬT KHẨU (nếu password là ciphertext).
     passwordCodec: z.array(codecStepSchema).optional(),
   })
   .refine((d) => d.type !== "oracle" || (!!d.service && !!d.host && !!d.port && !!d.user), {

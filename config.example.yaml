@@ -60,10 +60,13 @@ databases:
   #     - { codec: base64 }
   #     - { codec: aes, mode: ctr, key: "${REDIS_CONFIG_KEY}", keyHash: none, iv: prefix }
   #     - { codec: utf8 }
-  #   # Value mã hoá rồi Java-serialize (vd AES/CBC IV=0, key=sha256(secret)):
-  #   valueCodec:
-  #     - { codec: aes, mode: cbc, key: "${REDIS_SECRET_KEY}", keyHash: sha256, iv: zero }
-  #     - { codec: java }
+  #   # Value mã hoá rồi Java-serialize (vd AES/CBC IV=0, key=sha256(secret)).
+  #   # Một chuỗi: dùng `valueCodec`. Nếu DB trộn nhiều định dạng (vd security-cache
+  #   # AES+java LẪN non-security-cache JSON thuần) thì khai `valueCodecs` (nhiều
+  #   # chuỗi ứng viên): thử lần lượt, chuỗi nào decode không lỗi thì lấy.
+  #   valueCodecs:
+  #     - [ { codec: aes, mode: cbc, key: "${REDIS_SECRET_KEY}", keyHash: sha256, iv: zero }, { codec: java } ]
+  #     - [ { codec: json } ]
 sources:
   agent_a:
     apiKey: ${KEY_A}
