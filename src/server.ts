@@ -16,6 +16,7 @@ import {registerRedisListKeys} from "./tools/redis-list-keys.js";
 import {registerRedisGet} from "./tools/redis-get.js";
 import {registerRedisWrite} from "./tools/redis-write.js";
 import {registerRedisPublish} from "./tools/redis-publish.js";
+import {registerRedisSubscribe} from "./tools/redis-subscribe.js";
 
 export function createServer(source: Source): McpServer {
   const server = new McpServer({ name: "mcp-db-tools", version: "2.0.0" });
@@ -34,5 +35,6 @@ export function createServer(source: Source): McpServer {
   registerRedisGet(server, source);
   registerRedisWrite(server, source);
   registerRedisPublish(server, source);
+  registerRedisSubscribe(server, source);
   return server;
 }

@@ -260,3 +260,62 @@ export async function channelSubscribers(
   const res = (await client.call("PUBSUB", "NUMSUB", channel)) as (string | number)[];
   return { channel, subscribers: Number(res[1] ?? 0) };
 }
+
+// ─── Subscribe (nghe message thật app phát) ─────────────────────────────────
+
+const MAX_SUBSCRIBE_MS = 30000;
+
+export interface SubscribeResult {
+  channels: string[];
+  waitedMs: number;
+  count: number;
+  messages: { channel: string; at: string; message: string; json?: unknown }[];
+}
+
+/**
+ * SUBSCRIBE một/nhiều channel trong `timeoutMs` (cap 30s) rồi trả về các message
+ * NHẬN ĐƯỢC. Dùng để quan sát đúng payload app tự phát (vd ReloadCacheModel →
+ * lấy token `factory` thật). Dùng connection riêng (duplicate) nên không ảnh
+ * hưởng kết nối chính; luôn đóng sau khi xong. Không gửi gì (chỉ nghe).
+ */
+export async function subscribeMessages(
+  dbName: string,
+  channels: string[],
+  timeoutMs: number,
+  maxMessages: number
+): Promise<SubscribeResult> {
+  const base = await getRedis(dbName);
+  const sub = base.duplicate();
+  const wait = Math.min(Math.max(timeoutMs, 1000), MAX_SUBSCRIBE_MS);
+  const messages: SubscribeResult["messages"] = [];
+  const started = Date.now();
+
+  try {
+    await sub.connect();
+    await sub.subscribe(...channels);
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, wait);
+      sub.on("message", (channel: string, message: string) => {
+        let json: unknown;
+        try {
+          json = JSON.parse(message);
+        } catch {
+          /* message không phải JSON — bỏ qua field json */
+        }
+        messages.push({ channel, at: new Date().toISOString(), message, ...(json !== undefined ? { json } : {}) });
+        if (messages.length >= maxMessages) {
+          clearTimeout(timer);
+          resolve();
+        }
+      });
+    });
+  } finally {
+    try {
+      sub.disconnect();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return { channels, waitedMs: Date.now() - started, count: messages.length, messages };
+}
