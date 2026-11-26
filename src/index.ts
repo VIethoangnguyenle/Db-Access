@@ -13,6 +13,7 @@ import {extractApiKey} from "./auth/http.js";
 import {shutdownAll} from "./net/tunnel-manager.js";
 import {closeAllRedis} from "./drivers/redis/pool.js";
 import {createServer} from "./server.js";
+import type {McpServer} from "@modelcontextprotocol/sdk/server/mcp.js";
 import {Source} from "./config/schema.js";
 
 // quiet: true — dotenv v17 in ra stdout 1 banner; ở stdio mode banner đó sẽ
@@ -44,6 +45,12 @@ for (const sig of ["SIGINT", "SIGTERM"] as const) {
 }
 
 const isStdio = process.argv.includes("--stdio");
+
+type StreamableSession = {
+  transport: StreamableHTTPServerTransport;
+  server: McpServer;
+  lastSeen: number;
+};
 
 function resolveStdioSource(): Source {
   const flagIdx = process.argv.indexOf("--source");
@@ -91,16 +98,34 @@ if (isStdio) {
     next();
   });
 
-  const streamableTransports: Record<string, StreamableHTTPServerTransport> = {};
+  // Client bỏ đi mà không gửi DELETE (gateway restart, phiên tắt, rớt mạng) thì onclose không bao giờ
+  // chạy và session nằm lại mãi, mỗi cái giữ một McpServer riêng (~1.5 MB). Quét định kỳ, đóng session
+  // im quá TTL; client gặp 404 "Session not found" sẽ tự khởi tạo session mới theo spec MCP.
+  const SESSION_IDLE_TTL_MS = Number(process.env.MCP_SESSION_IDLE_TTL_MS) || 60 * 60 * 1000;
+  const SESSION_SWEEP_INTERVAL_MS = Math.min(5 * 60 * 1000, SESSION_IDLE_TTL_MS);
+  const streamableSessions = new Map<string, StreamableSession>();
+
+  setInterval(() => {
+    const cutoff = Date.now() - SESSION_IDLE_TTL_MS;
+    const idle = [...streamableSessions].filter(([, s]) => s.lastSeen < cutoff);
+    if (idle.length === 0) return;
+    for (const [sid, s] of idle) {
+      streamableSessions.delete(sid);
+      s.server.close().catch((e) => console.error(`[streamable-http] close ${sid} failed:`, e));
+    }
+    console.error(`[streamable-http] swept ${idle.length} idle session(s), ${streamableSessions.size} left`);
+  }, SESSION_SWEEP_INTERVAL_MS).unref();
 
   const streamableHandler = async (req: express.Request, res: express.Response) => {
     try {
       const sessionId = req.headers["mcp-session-id"] as string | undefined;
-      if (sessionId && streamableTransports[sessionId]) {
-        await streamableTransports[sessionId].handleRequest(req, res, req.body);
+      const session = sessionId ? streamableSessions.get(sessionId) : undefined;
+      if (session) {
+        session.lastSeen = Date.now();
+        await session.transport.handleRequest(req, res, req.body);
         return;
       }
-      if (sessionId && !streamableTransports[sessionId]) {
+      if (sessionId) {
         res.status(404).json({jsonrpc: "2.0", error: {code: -32000, message: "Session not found"}, id: null});
         return;
       }
@@ -108,14 +133,17 @@ if (isStdio) {
         res.status(400).json({jsonrpc: "2.0", error: {code: -32000, message: "Bad Request: No session ID for non-POST"}, id: null});
         return;
       }
-      const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => randomUUID(),
-        onsessioninitialized: (sid) => { streamableTransports[sid] = transport; console.error(`[streamable-http] New session: ${sid}`); },
-      });
-      transport.onclose = () => { const sid = transport.sessionId; if (sid) delete streamableTransports[sid]; };
-
       const source = (req as any).source as Source;
       const server = createServer(source);
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => randomUUID(),
+        onsessioninitialized: (sid) => {
+          streamableSessions.set(sid, {transport, server, lastSeen: Date.now()});
+          console.error(`[streamable-http] New session: ${sid} (${streamableSessions.size} open)`);
+        },
+      });
+      transport.onclose = () => { const sid = transport.sessionId; if (sid) streamableSessions.delete(sid); };
+
       await server.connect(transport);
       await transport.handleRequest(req, res, req.body);
     } catch (e) {
